@@ -27,9 +27,11 @@ class Dao(object):
 
     def drop_tables(self): self.schema['metadata'].drop_all(self.engine)
 
-    def create_ent(self, ent_key=None, attrs=None, connection=None):
+    def create_ent(self, ent_key=None, ent_patches=None, attrs=None,
+                   connection=None):
         if ent_key is None: ent_key = self.generate_key()
-        self.execute(self.schema['tables']['ents'].insert(), [{'key': ent_key}],
+        self.execute(self.schema['tables']['ents'].insert(),
+                     [{'key': ent_key, **(ent_patches or {})}],
                      connection=connection)
         if attrs: self.create_attrs(ent_key=ent_key, attrs=attrs,
                                     connection=connection)
@@ -63,8 +65,8 @@ class Dao(object):
         if type_ and type_ != 'str': return json.loads(raw_value)
         return raw_value
 
-    def update_ent(self, ent_key=None, patches=None, deletions=None,
-                    ent_modified=None, connection=None):
+    def update_ent(self, ent_key=None, ent_patches=None, attr_patches=None,
+                   attr_deletions=None, ent_modified=None, connection=None):
         connection = connection or self.connection
         trans = connection.begin()
         try:
@@ -72,16 +74,12 @@ class Dao(object):
                 self.validate_and_update_ent_modified(
                     ent_key=ent_key, modified=ent_modified,
                     connection=connection)
-            deletions = deletions or []
-            attrs_to_delete = list(patches.keys()) + deletions
-            patches_to_insert = {attr: value for attr, value in patches.items()
-                                 if attr not in deletions}
-            self.delete_attrs(ent_key=ent_key, attrs_to_delete=attrs_to_delete,
-                              connection=connection)
-            if patches_to_insert:
-                self.create_attrs(ent_key=ent_key, attrs=patches_to_insert,
-                                  connection=connection)
-            self.update_ent_modified(ent_key=ent_key, connection=connection)
+            if attr_patches or attr_deletions:
+                self.update_ent_attrs(ent_key=ent_key, patches=attr_patches,
+                                      deletions=attr_deletions,
+                                      connection=connection)
+            self.patch_ent(ent_key=ent_key, patches=ent_patches, 
+                           connection=connection)
             trans.commit()
         except:
             trans.rollback()
@@ -90,18 +88,32 @@ class Dao(object):
     def validate_and_update_ent_modified(self, ent_key=None, modified=None,
                                          connection=None):
         ents = self.schema['tables']['ents']
-        result = self.update_ent_modified(
+        result = self.patch_ent(
             ent_key=ent_key,
             wheres=[(ents.c.modified == modified)],
             connection=connection
         )
         if result.rowcount != 1: raise self.StaleEntError()
 
-    def update_ent_modified(self, ent_key=None, wheres=None, connection=None):
+    def patch_ent(self, ent_key=None, patches=None, wheres=None,
+                  connection=None):
         ents = self.schema['tables']['ents']
         statement = ents.update().where(ents.c.key == ent_key)
+        if patches: statement = statement.values(patches)
         for where in (wheres or []): statement = statement.where(where)
         return self.execute(statement, connection=connection)
+
+    def update_ent_attrs(self, ent_key=None, patches=None, deletions=None,
+                         connection=None):
+        deletions = deletions or []
+        attrs_to_delete = list(patches.keys()) + deletions
+        patches_to_insert = {attr: value for attr, value in patches.items()
+                             if attr not in deletions}
+        self.delete_attrs(ent_key=ent_key, attrs_to_delete=attrs_to_delete,
+                          connection=connection)
+        if patches_to_insert:
+            self.create_attrs(ent_key=ent_key, attrs=patches_to_insert,
+                              connection=connection)
 
     def delete_attrs(self, ent_key=None, attrs_to_delete=None, connection=None):
         if not attrs_to_delete: return
@@ -287,14 +299,17 @@ class Dao(object):
         )
         return statement
 
-    def upsert_ent(self, ent_key=None, patches=None, deletions=None,
-                   connection=None):
+    def upsert_ent(self, ent_key=None, ent_patches=None, attr_patches=None,
+                   attr_deletions=None, connection=None):
         connection = connection or self.connection
         with connection.begin():
             try:
-                return self.create_ent(ent_key=ent_key, attrs=patches,
-                                       connection=connection)
+                return self.create_ent(
+                    ent_key=ent_key, ent_patches=ent_patches,
+                    attrs=attr_patches, connection=connection
+                )
             except _sqla_exc.IntegrityError:
-                return self.update_ent(ent_key=ent_key, patches=patches,
-                                       deletions=deletions,
-                                       connection=connection)
+                return self.update_ent(
+                    ent_key=ent_key, ent_patches=ent_patches,
+                    attr_patches=attr_patches, attr_deletions=attr_deletions,
+                    connection=connection)

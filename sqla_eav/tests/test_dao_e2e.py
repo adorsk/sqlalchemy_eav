@@ -25,7 +25,7 @@ class PatchEntTestCase(BaseTestCase):
     def setUp(self):
         super().setUp()
         self.ent = self.dao.create_ent(attrs=self.attrs)
-        self.patches = self.generate_patches()
+        self.attr_patches = self.generate_patches()
 
     def generate_patches(self):
         now = time.time()
@@ -35,10 +35,11 @@ class PatchEntTestCase(BaseTestCase):
         }
 
     def test_update_ent(self):
-        self.dao.update_ent(ent_key=self.ent['key'], patches=self.patches)
-        self.assert_patches(patches=self.patches)
+        self.dao.update_ent(ent_key=self.ent['key'],
+                            attr_patches=self.attr_patches)
+        self.assert_attr_patches(attr_patches=self.attr_patches)
 
-    def assert_patches(self, patches=None):
+    def assert_attr_patches(self, attr_patches=None):
         ent_attr_dicts = self.dao.execute_sql(sql=textwrap.dedent(
             '''
             SELECT ents.modified as ent_modified, attrs.* FROM
@@ -48,20 +49,24 @@ class PatchEntTestCase(BaseTestCase):
         self.assertEqual(
             self.dao.ent_attr_dicts_to_ent_dicts(
                 ent_attr_dicts)[self.ent['key']]['attrs'],
-            patches
+            attr_patches
         )
 
     def test_validates_modified_if_given(self):
-        self.dao.update_ent(ent_key=self.ent['key'], patches=self.patches)
+        self.dao.update_ent(ent_key=self.ent['key'], 
+                            attr_patches=self.attr_patches)
         with self.assertRaises(self.dao.StaleEntError):
-            self.dao.update_ent(ent_key=self.ent['key'], patches=self.patches,
-                                 ent_modified=self.ent['modified'])
+            self.dao.update_ent(ent_key=self.ent['key'],
+                                attr_patches=self.attr_patches,
+                                ent_modified=self.ent['modified'])
 
     def test_doesnt_validate_modified_if_not_given(self):
-        patches_2 = self.generate_patches()
-        self.dao.update_ent(ent_key=self.ent['key'], patches=self.patches)
-        self.dao.update_ent(ent_key=self.ent['key'], patches=patches_2)
-        self.assert_patches(patches=patches_2)
+        attr_patches_2 = self.generate_patches()
+        self.dao.update_ent(ent_key=self.ent['key'],
+                            attr_patches=self.attr_patches)
+        self.dao.update_ent(ent_key=self.ent['key'],
+                            attr_patches=attr_patches_2)
+        self.assert_attr_patches(attr_patches=attr_patches_2)
 
 class QueryPropsTestCase(BaseTestCase):
     def test_attr_existence_query(self):
@@ -178,17 +183,17 @@ class UpsertEntTestCase(BaseTestCase):
         self.ent_key = 'my_ent_key'
 
     def test_creates_if_not_exists(self):
-        self.dao.upsert_ent(ent_key=self.ent_key, patches=self.attrs)
+        self.dao.upsert_ent(ent_key=self.ent_key, attr_patches=self.attrs)
         fetched_ents = self.dao.query_ents()
         self.assertEqual(fetched_ents[self.ent_key]['attrs'], self.attrs)
 
     def test_patches_if_exists(self):
         self.dao.create_ent(ent_key=self.ent_key, attrs=self.attrs)
         attr_keys = list(self.attrs.keys())
-        patches = {attr: '{attr}_new_value'.format(attr=attr)
-                   for attr in attr_keys[:-1]}
-        deletions = [attr_keys[-1]]
-        self.dao.upsert_ent(ent_key=self.ent_key, patches=patches,
-                            deletions=deletions)
+        attr_patches = {attr: '{attr}_new_value'.format(attr=attr)
+                        for attr in attr_keys[:-1]}
+        attr_deletions = [attr_keys[-1]]
+        self.dao.upsert_ent(ent_key=self.ent_key, attr_patches=attr_patches,
+                            attr_deletions=attr_deletions)
         fetched_ents = self.dao.query_ents()
-        self.assertEqual(fetched_ents[self.ent_key]['attrs'], patches)
+        self.assertEqual(fetched_ents[self.ent_key]['attrs'], attr_patches)
