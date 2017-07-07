@@ -16,8 +16,7 @@ def generate_schema(table_prefix='', extra_ent_columns=None):
     schema['tables']['attrs'] = _sqla.Table(
         (table_prefix + 'attrs'), schema['metadata'],
         generate_key_column(),
-        _sqla.Column('ent_key', None,
-                     _sqla.ForeignKey(schema['tables']['ents'].c.key),
+        _sqla.Column('ent_key', None, _sqla.ForeignKey('ents.key'),
                      index=True),
         _sqla.Column('attr', _sqla_types.String(length=1024),
                      index=True),
