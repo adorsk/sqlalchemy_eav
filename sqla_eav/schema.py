@@ -12,12 +12,12 @@ def generate_schema():
         generate_key_column(),
         *generate_timestamp_columns()
     )
-    schema['tables']['attrs'] = _sqla.Table(
-        'attrs', schema['metadata'],
+    schema['tables']['props'] = _sqla.Table(
+        'props', schema['metadata'],
         generate_key_column(),
         _sqla.Column('ent_key', None, _sqla.ForeignKey('ents.key'),
                      index=True),
-        _sqla.Column('attr', _sqla_types.String(length=1024),
+        _sqla.Column('prop', _sqla_types.String(length=1024),
                      index=True),
         _sqla.Column('value', _sqla_types.Text(),
                      nullable=True),

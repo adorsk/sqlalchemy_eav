@@ -14,14 +14,14 @@ class BaseTestCase(unittest.TestCase):
 class CreateEntTestCase(BaseTestCase):
     def setUp(self):
         super().setUp()
-        self.attrs = {'ent_key_%s' % i: 'value_%s' % i for i in range(3)}
+        self.props = {'ent_key_%s' % i: 'value_%s' % i for i in range(3)}
         self.dao.execute = MagicMock()
         self.dao.generate_key = MagicMock()
         self.expected_ent_key = self.dao.generate_key.return_value
         self.connection = MagicMock()
-        self.dao.create_attrs = MagicMock()
+        self.dao.create_props = MagicMock()
         self.dao.query_ents = MagicMock()
-        self.result = self.dao.create_ent(attrs=self.attrs,
+        self.result = self.dao.create_ent(props=self.props,
                                           connection=self.connection)
 
     def test_execute_ent_insert_statement(self):
@@ -32,10 +32,10 @@ class CreateEntTestCase(BaseTestCase):
                  connection=self.connection)
         )
 
-    def test_creates_attrs(self):
+    def test_creates_props(self):
         self.assertEqual(
-            self.dao.create_attrs.call_args,
-            call(ent_key=self.expected_ent_key, attrs=self.attrs,
+            self.dao.create_props.call_args,
+            call(ent_key=self.expected_ent_key, props=self.props,
                  connection=self.connection)
         )
 
@@ -55,21 +55,21 @@ class CreateEntTestCase(BaseTestCase):
 class CreatePropsTestCase(BaseTestCase):
     def setUp(self):
         super().setUp()
-        self.attrs = {'key_%s' % i: 'value_%s' % i for i in range(3)}
+        self.props = {'key_%s' % i: 'value_%s' % i for i in range(3)}
         self.dao.execute = MagicMock()
         self.dao.serialize_value = MagicMock()
         self.ent_key = MagicMock()
         self.connection = MagicMock()
-        self.dao.create_attrs(
-            ent_key=self.ent_key, attrs=self.attrs, connection=self.connection)
+        self.dao.create_props(
+            ent_key=self.ent_key, props=self.props, connection=self.connection)
 
-    def test_executes_attrs_insert_statement(self):
+    def test_executes_props_insert_statement(self):
         self.assertEqual(
             self.dao.execute.call_args,
-            call(self.dao.schema['tables']['attrs'].insert(),
-                 [{'ent_key': self.ent_key, 'attr': attr,
+            call(self.dao.schema['tables']['props'].insert(),
+                 [{'ent_key': self.ent_key, 'prop': prop,
                    **self.dao.serialize_value(value=value)}
-                   for attr, value in self.attrs.items()],
+                   for prop, value in self.props.items()],
                  connection=self.connection)
         )
 
@@ -84,8 +84,8 @@ class PatchEntTestCase(BaseTestCase):
         self.ent_modified = MagicMock()
         self.dao.validate_and_update_ent_modified = MagicMock()
         self.dao.update_ent_modified = MagicMock()
-        self.dao.delete_attrs = MagicMock()
-        self.dao.create_attrs = MagicMock()
+        self.dao.delete_props = MagicMock()
+        self.dao.create_props = MagicMock()
 
     def _update_ent(self, **kwargs):
         return self.dao.update_ent(**{
@@ -107,24 +107,24 @@ class PatchEntTestCase(BaseTestCase):
         self.assertEqual(self.dao.validate_and_update_ent_modified.call_args,
                          None)
 
-    def test_calls_delete_attrs(self):
+    def test_calls_delete_props(self):
         self._update_ent()
-        expected_attrs_to_delete = list(self.patches.keys()) + self.deletions
+        expected_props_to_delete = list(self.patches.keys()) + self.deletions
         self.assertEqual(
-            self.dao.delete_attrs.call_args,
-            call(ent_key=self.ent_key, attrs_to_delete=expected_attrs_to_delete,
+            self.dao.delete_props.call_args,
+            call(ent_key=self.ent_key, props_to_delete=expected_props_to_delete,
                  connection=self.connection)
         )
 
-    def test_calls_create_attrs(self):
+    def test_calls_create_props(self):
         self._update_ent()
         expected_patches_to_insert = {
-            attr: value for attr, value in self.patches.items()
-            if attr not in self.deletions
+            prop: value for prop, value in self.patches.items()
+            if prop not in self.deletions
         }
         self.assertEqual(
-            self.dao.create_attrs.call_args,
-            call(ent_key=self.ent_key, attrs=expected_patches_to_insert,
+            self.dao.create_props.call_args,
+            call(ent_key=self.ent_key, props=expected_patches_to_insert,
                  connection=self.connection)
         )
 
@@ -192,16 +192,16 @@ class DeletePropsTestCase(BaseTestCase):
         self.dao.execute = MagicMock()
         self.connection = MagicMock()
         self.ent_key = MagicMock()
-        self.attrs_to_delete = MagicMock()
-        self.dao.delete_attrs(ent_key=self.ent_key,
-                              attrs_to_delete=self.attrs_to_delete,
+        self.props_to_delete = MagicMock()
+        self.dao.delete_props(ent_key=self.ent_key,
+                              props_to_delete=self.props_to_delete,
                               connection=self.connection)
 
     def test_executes_delete_statement(self):
-        expected_statement = self.dao.schema['tables']['attrs'].delete().where(
-            (self.dao.schema['tables']['attrs'].c.ent_key == self.ent_key)
-            & (self.dao.schema['tables']['attrs'].c.attr.in_(
-                self.attrs_to_delete))
+        expected_statement = self.dao.schema['tables']['props'].delete().where(
+            (self.dao.schema['tables']['props'].c.ent_key == self.ent_key)
+            & (self.dao.schema['tables']['props'].c.prop.in_(
+                self.props_to_delete))
         )
         self.assertEqual(self.dao.execute.call_args,
                          call(expected_statement, connection=self.connection))
@@ -251,14 +251,14 @@ class QueryEntsTestCase(BaseTestCase):
         super().setUp()
         self.dao.get_ents_query_statement = MagicMock()
         self.dao.execute = MagicMock()
-        self.dao.ent_attr_dicts_to_ent_dicts = MagicMock()
-        self.attrs_to_select = MagicMock()
-        self.attr_filters = MagicMock()
+        self.dao.ent_prop_dicts_to_ent_dicts = MagicMock()
+        self.props_to_select = MagicMock()
+        self.prop_filters = MagicMock()
         self.ent_filters = MagicMock()
         self.connection = MagicMock()
         self.query = {
-            'attrs_to_select': self.attrs_to_select,
-            'attr_filters': self.attr_filters,
+            'props_to_select': self.props_to_select,
+            'prop_filters': self.prop_filters,
             'ent_filters': self.ent_filters,
         }
         self.result = self.dao.query_ents(query=self.query,
@@ -277,22 +277,22 @@ class QueryEntsTestCase(BaseTestCase):
 
     def test_returns_ent_dicts(self):
         self.assertEqual(
-            self.dao.ent_attr_dicts_to_ent_dicts.call_args,
-            call(ent_attr_dicts=self.dao.execute.return_value.fetchall())
+            self.dao.ent_prop_dicts_to_ent_dicts.call_args,
+            call(ent_prop_dicts=self.dao.execute.return_value.fetchall())
         )
         self.assertEqual(self.result,
-                         self.dao.ent_attr_dicts_to_ent_dicts.return_value)
+                         self.dao.ent_prop_dicts_to_ent_dicts.return_value)
 
 class GetEntsQueryStatement(BaseTestCase):
     def setUp(self):
         super().setUp()
         self.dao.get_ents_query_components = MagicMock()
         self.dao.query_components_to_statement = MagicMock()
-        self.attrs_to_select = MagicMock()
-        self.attr_filters = MagicMock()
+        self.props_to_select = MagicMock()
+        self.prop_filters = MagicMock()
         self.query = {
-            'attrs_to_select': self.attrs_to_select,
-            'attr_filters': self.attr_filters
+            'props_to_select': self.props_to_select,
+            'prop_filters': self.prop_filters
         }
         self.result = self.dao.get_ents_query_statement(query=self.query)
 
@@ -314,7 +314,7 @@ class GetEntsQueryStatement(BaseTestCase):
 class GetEntsQueryComponents(BaseTestCase):
     def setUp(self):
         super().setUp()
-        self.dao._alter_ents_query_components_per_attr_filter = MagicMock()
+        self.dao._alter_ents_query_components_per_prop_filter = MagicMock()
         self.dao._alter_ents_query_components_per_ent_filter = MagicMock()
         self.dao._get_ents_base_query_components = MagicMock()
         self.expected_components = \
@@ -329,33 +329,33 @@ class GetEntsQueryComponents(BaseTestCase):
         actual = self.dao.get_ents_query_components()
         self.assertEqual(actual, self.expected_components)
 
-    def test_limits_attrs_if_attrs_to_select_is_specified(self):
-        attrs_to_select = ['attr_%s' % i for i in range(3)]
+    def test_limits_props_if_props_to_select_is_specified(self):
+        props_to_select = ['prop_%s' % i for i in range(3)]
         actual = self.dao.get_ents_query_components(query={
-            'attrs_to_select': attrs_to_select
+            'props_to_select': props_to_select
         })
-        outer_attrs = self.expected_components['tables']['outer_attrs']
+        outer_props = self.expected_components['tables']['outer_props']
         expected = {
             **self.expected_components,
             'wheres': (
                 self.expected_components['wheres'] +
-                [outer_attrs.c.attr.in_(attrs_to_select)]
+                [outer_props.c.prop.in_(props_to_select)]
             )
         }
         self.assertEqual(actual, expected)
 
-    def test_alters_components_per_attr_filters(self):
-        attr_filters = ['filter_%s' % i for i in range(3)]
+    def test_alters_components_per_prop_filters(self):
+        prop_filters = ['filter_%s' % i for i in range(3)]
         actual = self.dao.get_ents_query_components(query={
-            'attr_filters': attr_filters
+            'prop_filters': prop_filters
         })
-        expected = (self.dao._alter_ents_query_components_per_attr_filter
+        expected = (self.dao._alter_ents_query_components_per_prop_filter
                     .return_value)
         self.assertEqual(actual, expected)
         self.assertEqual(
-            len(self.dao._alter_ents_query_components_per_attr_filter\
+            len(self.dao._alter_ents_query_components_per_prop_filter\
                 .call_args_list),
-            len(attr_filters)
+            len(prop_filters)
         )
 
     def test_alters_components_per_ent_filters(self):
@@ -375,35 +375,35 @@ class GetEntsQueryComponents(BaseTestCase):
 class AlterEntsQueryComponentsPerPropFilterTestCase(BaseTestCase):
     def setUp(self):
         super().setUp()
-        self.attr = 'some_attr'
+        self.prop = 'some_prop'
         self.arg = 'some_arg'
         self.op = 'some_op'
         self.query_components = MagicMock()
         self.filter = MagicMock()
 
     def _alter(self, query_components=None, filter_=None):
-        return self.dao._alter_ents_query_components_per_attr_filter(
+        return self.dao._alter_ents_query_components_per_prop_filter(
             query_components=(query_components or self.query_components),
             filter_=(filter_ or self.filter)
         )
 
     def test_dispatches_for_binary_filter(self):
         self.dao.get_filter_type = MagicMock(return_value='binary')
-        self.dao._alter_ents_query_components_per_attr_binary_filter = MagicMock()
+        self.dao._alter_ents_query_components_per_prop_binary_filter = MagicMock()
         self._alter()
         self.assertEqual(
-            self.dao._alter_ents_query_components_per_attr_binary_filter\
+            self.dao._alter_ents_query_components_per_prop_binary_filter\
             .call_args,
             call(query_components=self.query_components, filter_=self.filter)
         )
 
     def test_dispatches_for_existence_filter(self):
         self.dao.get_filter_type = MagicMock(return_value='existence')
-        self.dao._alter_ents_query_components_per_attr_existence_filter = \
+        self.dao._alter_ents_query_components_per_prop_existence_filter = \
                 MagicMock()
         self._alter()
         self.assertEqual(
-            self.dao._alter_ents_query_components_per_attr_existence_filter\
+            self.dao._alter_ents_query_components_per_prop_existence_filter\
             .call_args,
             call(query_components=self.query_components, filter_=self.filter)
         )
@@ -423,20 +423,20 @@ class GetFilterTypeTestCase(BaseTestCase):
 class AlterEntsQueryComponentsPerPropBinaryFilterTestCase(BaseTestCase):
     def test_adds_joined_subquery(self):
         self.dao.get_where_clause_for_binary_filter = MagicMock()
-        filter_ = {'attr': 'some_attr', 'op': 'some_op', 'arg': 'some_arg'}
+        filter_ = {'prop': 'some_prop', 'op': 'some_op', 'arg': 'some_arg'}
         query_components = MagicMock()
-        attrs = query_components['tables']['attrs'].alias()
+        props = query_components['tables']['props'].alias()
         subq = (
-            attrs.select()
-            .where(attrs.c.attr == filter_['attr'])
+            props.select()
+            .where(props.c.prop == filter_['prop'])
             .where(self.dao.get_where_clause_for_binary_filter(
-                column=attrs.c.value, filter_=filter_))
+                column=props.c.value, filter_=filter_))
         ).alias()
         expected = {
             **query_components,
             'from': query_components['from'].join(subq)
         }
-        actual = self.dao._alter_ents_query_components_per_attr_binary_filter(
+        actual = self.dao._alter_ents_query_components_per_prop_binary_filter(
             query_components=query_components, filter_=filter_)
         self.assertEqual(query_components['from'].join.call_args,
                          call(subq))
@@ -517,7 +517,7 @@ class UpsertEntTestCase(BaseTestCase):
         result = self._upsert_ent()
         self.assertEqual(
             self.dao.create_ent.call_args,
-            call(ent_key=self.ent_key, attrs=self.patches,
+            call(ent_key=self.ent_key, props=self.patches,
                  connection=self.connection)
         )
         self.assertEqual(result, self.dao.create_ent.return_value)
@@ -536,22 +536,22 @@ class UpsertEntTestCase(BaseTestCase):
 class EntPropDictsToEntDictsTestCase(BaseTestCase):
     def setUp(self):
         super().setUp()
-        self.ent_attr_dicts = [MagicMock() for i in range(3)]
+        self.ent_prop_dicts = [MagicMock() for i in range(3)]
         self.dao.deserialize_value = MagicMock()
-        self.result = self.dao.ent_attr_dicts_to_ent_dicts(
-            ent_attr_dicts=self.ent_attr_dicts)
+        self.result = self.dao.ent_prop_dicts_to_ent_dicts(
+            ent_prop_dicts=self.ent_prop_dicts)
 
-    def test_converts_ent_attr_dicts_to_ent_dicts(self):
+    def test_converts_ent_prop_dicts_to_ent_dicts(self):
         expected_ent_dicts = {}
-        for ent_attr_dict in self.ent_attr_dicts:
-            ent_key = ent_attr_dict['ent_key']
+        for ent_prop_dict in self.ent_prop_dicts:
+            ent_key = ent_prop_dict['ent_key']
             if ent_key not in expected_ent_dicts:
                 expected_ent_dicts[ent_key] = {
                     'key': ent_key,
-                    'modified': ent_attr_dict['ent_modified'],
-                    'attrs': {},
+                    'modified': ent_prop_dict['ent_modified'],
+                    'props': {},
                 }
-            expected_ent_dicts[ent_key]['attrs'][ent_attr_dict['attr']] = \
-                    self.dao.deserialize_value(raw_value=ent_attr_dict['value'],
-                                               type_=ent_attr_dict['type'])
+            expected_ent_dicts[ent_key]['props'][ent_prop_dict['prop']] = \
+                    self.dao.deserialize_value(raw_value=ent_prop_dict['value'],
+                                               type_=ent_prop_dict['type'])
         self.assertEqual(self.result, expected_ent_dicts)
