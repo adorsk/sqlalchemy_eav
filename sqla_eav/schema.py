@@ -4,17 +4,16 @@ import time
 import sqlalchemy as _sqla
 import sqlalchemy.types as _sqla_types
 
-def generate_schema(table_prefix='', extra_ent_columns=None):
+def generate_schema():
     schema = {'metadata': _sqla.MetaData()}
     schema['tables'] = {}
     schema['tables']['ents'] = _sqla.Table(
-        (table_prefix + 'ents'), schema['metadata'],
+        'ents', schema['metadata'],
         generate_key_column(),
-        *generate_timestamp_columns(),
-        *(extra_ent_columns or [])
+        *generate_timestamp_columns()
     )
     schema['tables']['attrs'] = _sqla.Table(
-        (table_prefix + 'attrs'), schema['metadata'],
+        'attrs', schema['metadata'],
         generate_key_column(),
         _sqla.Column('ent_key', None, _sqla.ForeignKey('ents.key'),
                      index=True),

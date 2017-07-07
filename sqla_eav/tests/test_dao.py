@@ -73,27 +73,25 @@ class CreatePropsTestCase(BaseTestCase):
                  connection=self.connection)
         )
 
-class UpdateEntTestCase(BaseTestCase):
+class PatchEntTestCase(BaseTestCase):
     def setUp(self):
         super().setUp()
-        self.ent_patches = {'key_%s' % i: 'value_%s' % i for i in range(3)}
-        self.attr_patches = {'key_%s' % i: 'value_%s' % i for i in range(3)}
-        self.attr_deletions = ['key_to_delete_%s' % i for i in range(3)]
+        self.patches = {'key_%s' % i: 'value_%s' % i for i in range(3)}
+        self.deletions = ['key_to_delete_%s' % i for i in range(3)]
         self.dao.execute = MagicMock()
         self.ent_key = MagicMock()
         self.connection = MagicMock()
         self.ent_modified = MagicMock()
         self.dao.validate_and_update_ent_modified = MagicMock()
-        self.dao.patch_ent = MagicMock()
+        self.dao.update_ent_modified = MagicMock()
         self.dao.delete_attrs = MagicMock()
         self.dao.create_attrs = MagicMock()
 
     def _update_ent(self, **kwargs):
         return self.dao.update_ent(**{
-            'ent_key': self.ent_key, 'ent_patches': self.ent_patches,
-            'attr_patches': self.attr_patches,
-            'attr_deletions': self.attr_deletions,
-            'connection': self.connection, **kwargs
+            'ent_key': self.ent_key, 'patches': self.patches,
+            'deletions': self.deletions, 'connection': self.connection,
+            **kwargs
         })
 
     def test_validates_and_updates_ent_modified_if_given_ent_modified(self):
@@ -111,8 +109,7 @@ class UpdateEntTestCase(BaseTestCase):
 
     def test_calls_delete_attrs(self):
         self._update_ent()
-        expected_attrs_to_delete = (list(self.attr_patches.keys())
-                                    + self.attr_deletions)
+        expected_attrs_to_delete = list(self.patches.keys()) + self.deletions
         self.assertEqual(
             self.dao.delete_attrs.call_args,
             call(ent_key=self.ent_key, attrs_to_delete=expected_attrs_to_delete,
@@ -122,8 +119,8 @@ class UpdateEntTestCase(BaseTestCase):
     def test_calls_create_attrs(self):
         self._update_ent()
         expected_patches_to_insert = {
-            attr: value for attr, value in self.attr_patches.items()
-            if attr not in self.attr_deletions
+            attr: value for attr, value in self.patches.items()
+            if attr not in self.deletions
         }
         self.assertEqual(
             self.dao.create_attrs.call_args,
@@ -131,24 +128,21 @@ class UpdateEntTestCase(BaseTestCase):
                  connection=self.connection)
         )
 
-    def test_patches_ent(self):
+    def test_updates_ent_modified(self):
         self._update_ent()
-        self.assertEqual(
-            self.dao.patch_ent.call_args,
-            call(ent_key=self.ent_key, patches=self.ent_patches,
-                 connection=self.connection)
-        )
+        self.assertEqual(self.dao.update_ent_modified.call_args,
+                         call(ent_key=self.ent_key, connection=self.connection))
 
 class ValidateAndUpdateEntModifiedTestCase(BaseTestCase):
     def setUp(self):
         super().setUp()
-        self.dao.patch_ent = MagicMock()
+        self.dao.update_ent_modified = MagicMock()
         self.ent_key = MagicMock()
         self.modified = MagicMock()
         self.connection = MagicMock()
 
     def _validate_and_updated_ent_modified(self, rowcount=1, **kwargs):
-        self.dao.patch_ent.return_value.rowcount = rowcount
+        self.dao.update_ent_modified.return_value.rowcount = rowcount
         return self.dao.validate_and_update_ent_modified(**{
             'ent_key': self.ent_key, 'modified': self.modified,
             'connection': self.connection, **kwargs
@@ -158,7 +152,7 @@ class ValidateAndUpdateEntModifiedTestCase(BaseTestCase):
         self._validate_and_updated_ent_modified()
         expected_ents = self.dao.schema['tables']['ents']
         self.assertEqual(
-            self.dao.patch_ent.call_args,
+            self.dao.update_ent_modified.call_args,
             call(ent_key=self.ent_key,
                  wheres=[(expected_ents.c.modified == self.modified)],
                  connection=self.connection
@@ -169,25 +163,22 @@ class ValidateAndUpdateEntModifiedTestCase(BaseTestCase):
         with self.assertRaises(self.dao.StaleEntError):
             self._validate_and_updated_ent_modified(rowcount=0)
 
-class PatchEntTestCase(BaseTestCase):
+class UpdateEntModifiedTestCase(BaseTestCase):
     def setUp(self):
         super().setUp()
         self.dao.execute = MagicMock()
         self.ent_key = MagicMock()
-        self.patches = {'key_%s' % i: 'value_%s' % i for i in range(3)}
         self.wheres = [MagicMock() for i in range(3)]
         self.connection = MagicMock()
-        self.result = self.dao.patch_ent(ent_key=self.ent_key,
-                                         patches=self.patches,
-                                         wheres=self.wheres,
-                                         connection=self.connection)
+        self.result = self.dao.update_ent_modified(ent_key=self.ent_key,
+                                                   wheres=self.wheres,
+                                                   connection=self.connection)
 
     def test_executes_expected_statement(self):
         expected_ents = self.dao.schema['tables']['ents']
         expected_statement = (
             expected_ents.update()
             .where(expected_ents.c.key == self.ent_key)
-            .values(self.patches)
         )
         for where in self.wheres:
             expected_statement = expected_statement.where(where)
@@ -513,23 +504,21 @@ class UpsertEntTestCase(BaseTestCase):
         self.dao.get_where_clause_for_binary_filter = MagicMock()
         self.query_components = MagicMock()
         self.ent_key = MagicMock()
-        self.ent_patches = MagicMock()
-        self.attr_patches = MagicMock()
-        self.attr_deletions = MagicMock()
+        self.patches = MagicMock()
+        self.deletions = MagicMock()
         self.connection = MagicMock()
 
     def _upsert_ent(self):
         return self.dao.upsert_ent(
-            ent_key=self.ent_key, ent_patches=self.ent_patches,
-            attr_patches=self.attr_patches, attr_deletions=self.attr_deletions,
-            connection=self.connection)
+            ent_key=self.ent_key, patches=self.patches,
+            deletions=self.deletions, connection=self.connection)
 
     def test_calls_create(self):
         result = self._upsert_ent()
         self.assertEqual(
             self.dao.create_ent.call_args,
-            call(ent_key=self.ent_key, ent_patches=self.ent_patches,
-                 attrs=self.attr_patches, connection=self.connection)
+            call(ent_key=self.ent_key, attrs=self.patches,
+                 connection=self.connection)
         )
         self.assertEqual(result, self.dao.create_ent.return_value)
 
@@ -539,10 +528,8 @@ class UpsertEntTestCase(BaseTestCase):
         result = self._upsert_ent()
         self.assertEqual(
             self.dao.update_ent.call_args,
-            call(ent_key=self.ent_key, ent_patches=self.ent_patches,
-                 attr_patches=self.attr_patches,
-                 attr_deletions=self.attr_deletions,
-                 connection=self.connection)
+            call(ent_key=self.ent_key, patches=self.patches,
+                 deletions=self.deletions, connection=self.connection)
         )
         self.assertEqual(result, self.dao.update_ent.return_value)
 
