@@ -172,6 +172,27 @@ class QueryEntsTestCase(BaseTestCase):
         }
         self.assertEqual(actual, expected)
 
+class QueryEntsSansPropsTestCase(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        self.ent_specs = {
+            'ent_1':  {
+                'a': 'a.1',
+                'b': 'b.1'
+            },
+            'ent_2': {},
+            'ent_3': {}
+        }
+        self.ents = {
+            ent_key: self.dao.create_ent(ent_key=ent_key, props=props)
+            for ent_key, props in self.ent_specs.items()
+        }
+
+    def test_returns_ents_sans_props(self):
+        actual = self.dao.query_ents(query={})
+        expected = {ent_key: ent for ent_key, ent in self.ents.items()}
+        self.assertEqual(actual, expected)
+
 class UpsertEntTestCase(BaseTestCase):
     def setUp(self):
         super().setUp()

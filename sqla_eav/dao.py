@@ -171,10 +171,15 @@ class Dao(object):
                 'wheres': query_components['wheres'] + [
                     outer_props.c.prop.in_(props_to_select)]
             }
-        for filter_ in (query.get('prop_filters') or []):
-            query_components = \
-                    self._alter_ents_query_components_per_prop_filter(
-                        query_components=query_components, filter_=filter_)
+        prop_filters = query.get('prop_filters')
+        if prop_filters:
+            for filter_ in prop_filters:
+                query_components = \
+                        self._alter_ents_query_components_per_prop_filter(
+                            query_components=query_components, filter_=filter_)
+        else:
+            if 'from' in query_components:
+                query_components['from'].isouter = True
         for filter_ in (query.get('ent_filters') or []):
             query_components = self._alter_ents_query_components_per_ent_filter(
                 query_components=query_components, filter_=filter_)
